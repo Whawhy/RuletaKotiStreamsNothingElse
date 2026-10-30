@@ -80,9 +80,9 @@
     "#ab5675"  // mauve       (6th slice)
   ];
 
-  const START_DELAY = 3;        // seconds to wait before the wheel starts spinning
+  const START_DELAY = 15;        // seconds to wait before the wheel starts spinning
   const SPIN_SECONDS = 5;       // how long the wheel takes to stop
-  const SPIN_AGAIN_AFTER = 0;   // milliseconds before spinning again (0 = spin only once)
+  const SPIN_AGAIN_AFTER = 10000;   // milliseconds before spinning again (0 = spin only once)
 
   /* =================================== */
 
@@ -218,7 +218,7 @@
 
   const optionsReady = loadOptions();
   // Starts automatically after the delay (once options are loaded), no click needed
-  setTimeout(async () => { await optionsReady; spin(); }, START_DELAY * 15000);
+  setTimeout(async () => { await optionsReady; spin(); }, START_DELAY * 1000);
 </script>
 </body>
 </html>
