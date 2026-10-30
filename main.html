@@ -1,106 +1,159 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Ruleta con Delay</title>
-  <style>
-    body {
-      margin: 0;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      background-color: #f4f4f9;
-      font-family: Arial, sans-serif;
-      overflow: hidden;
-    }
-    .wrapper {
-      position: relative;
-      width: 300px;
-      height: 300px;
-    }
-    /* Indicador superior (flecha) */
-    .arrow {
-      position: absolute;
-      top: -12px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 0;
-      height: 0;
-      border-left: 12px solid transparent;
-      border-right: 12px solid transparent;
-      border-top: 22px solid #222;
-      z-index: 10;
-    }
-    .wheel {
-      width: 100%;
-      height: 100%;
-      border-radius: 50%;
-      border: 4px solid #333;
-      box-sizing: border-box;
-      /* Colores planos definidos por conic-gradient (3 opciones de ejemplo) */
-      background:(
-        #e74c3c, 
-        #3498db, 
-        #2ecc71
-      );
-      transition: transform 5s cubic-bezier(0.15, 0.9, 0.2, 1);
-    }
-    /* Texto del resultado */
-    #result {
-      margin-top: 20px;
-      font-size: 20px;
-      font-weight: bold;
-      color: #333;
-      height: 30px;
-      text-align: center;
-    }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spinning Wheel</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --text: #1d1d1f;
+    --pill-bg: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --text: #f5f5f7; --pill-bg: #1d1d1f; }
+  }
+  :root[data-theme="dark"] { --text: #f5f5f7; --pill-bg: #1d1d1f; }
+
+  html, body { height: 100%; margin: 0; background: transparent; }
+  :root { box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  body {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 28px; font-family: "Helvetica Neue", Arial, sans-serif; color: var(--text);
+  }
+  .wrap { position: relative; width: min(86vw, 62vh, 520px); aspect-ratio: 1; }
+  canvas { width: 100%; height: 100%; display: block; }
+  .pointer {
+    position: absolute; left: 50%; top: -6px; transform: translateX(-50%);
+    width: 0; height: 0; z-index: 2;
+    border-left: 16px solid transparent; border-right: 16px solid transparent;
+    border-top: 30px solid var(--text);
+  }
+  #result {
+    font-size: clamp(1.6rem, 5vw, 2.6rem); font-weight: 700; padding: 10px 28px;
+    border-radius: 999px; background: var(--pill-bg); color: var(--text);
+    border: 4px solid var(--text); min-height: 1.2em;
+    visibility: hidden; opacity: 0; transition: opacity .4s;
+  }
+  #result.show { visibility: visible; opacity: 1; }
+</style>
 </head>
 <body>
 
-  <div class="wrapper">
-    <div class="arrow"></div>
-    <div class="wheel" id="wheel"></div>
-  </div>
-  <div id="result">Esperando para girar...</div>
+<div class="wrap">
+  <div class="pointer"></div>
+  <canvas id="wheel"></canvas>
+</div>
+<div id="result" aria-live="polite"></div>
 
-  <script>
-    // 1. Define tus opciones aquí en el orden de los grados (de izquierda a derecha / sentido horario)
-    const opciones = ["Opción A", "Opción B", "Opción C"];
-    const totalOpciones = opciones.length;
-    const gradosPorOpcion = 360 / totalOpciones;
+<script>
+  /* ============ EDIT HERE ============ */
 
-    window.addEventListener('load', () => {
-      const wheel = document.getElementById('wheel');
-      const resultDiv = document.getElementById('result');
+  // Add or delete options freely: each line is one slice.
+  const OPTIONS = [
+    "Pizza",
+    "Sushi",
+    "Burger",
+    "Tacos",
+    "Pasta",
+    "Salad"
+  ];
 
-      // 2. Delay de 10 segundos (10000 milisegundos) antes de empezar a girar
-      setTimeout(() => {
-        resultDiv.textContent = "¡Girando...";
+  // Flat colors, reused in order if there are more options than colors.
+  // Use any hex color code (for example "#ff0000"). Add or delete lines to change the palette.
+  const COLORS = [
+    "#ffe07e", // pink-red   (1st slice)
+    "#ee6a7c", // yellow     (2nd slice)
+    "#ffa7a5", // green      (3rd slice)
+    "#72dcbb", // blue       (4th slice)
+    "#34acba", // purple     (5th slice)
+    "#ab5675"  // orange     (6th slice)
+  ];
+  const START_DELAY = 3;        // seconds to wait before the wheel starts spinning
+  const SPIN_SECONDS = 10;       // how long the wheel takes to stop
+  const SPIN_AGAIN_AFTER = 0;   // milliseconds before spinning again (0 = spin only once)
 
-        // Número aleatorio de vueltas completas (ej: 5 a 8 vueltas) + un ángulo aleatorio final
-        const vueltas = Math.floor(5 + Math.random() * 4);
-        const anguloAleatorio = Math.floor(Math.random() * 360);
-        const gradosTotales = (vueltas * 360) + anguloAleatorio;
+  /* =================================== */
 
-        // Aplicamos la rotación
-        wheel.style.transform = `rotate(${gradosTotales}deg)`;
+  const canvas = document.getElementById("wheel");
+  const ctx = canvas.getContext("2d");
+  const resultEl = document.getElementById("result");
+  const TAU = Math.PI * 2;
+  let rotation = 0;
 
-        // Calculamos cuál opción ganó exactamente cuando termine la animación (5 segundos después)
-        setTimeout(() => {
-          // Normalizamos el ángulo final a un rango de 0 a 360 grados
-          const anguloFinal = 360 - (gradosTotales % 360);
-          const indiceGanador = Math.floor(anguloFinal / gradosPorOpcion) % totalOpciones;
+  function resize() {
+    const size = canvas.clientWidth;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = canvas.height = Math.round(size * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
 
-          // Mostramos la opción ganadora en pantalla
-          resultDiv.textContent = `Resultado: ${opciones[indiceGanador]}`;
-        }, 5000); // 5000ms dura la transición de giro CSS
+  function draw() {
+    const size = canvas.clientWidth, c = size / 2, r = c - 4;
+    const n = OPTIONS.length, seg = TAU / n;
+    ctx.clearRect(0, 0, size, size);
+    for (let i = 0; i < n; i++) {
+      const a0 = rotation + i * seg, a1 = a0 + seg;
+      ctx.beginPath();
+      ctx.moveTo(c, c);
+      ctx.arc(c, c, r, a0, a1);
+      ctx.closePath();
+      ctx.fillStyle = COLORS[i % COLORS.length];
+      ctx.fill();
 
-      }, 10000); // 10000ms de delay inicial
-    });
-  </script>
+      ctx.save();
+      ctx.translate(c, c);
+      ctx.rotate(a0 + seg / 2);
+      ctx.fillStyle = "#ffffff";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      ctx.font = "700 " + Math.max(14, Math.min(28, r * 0.11, (r * 0.9 * seg) / 1.6)) + "px 'Helvetica Neue', Arial, sans-serif";
+      ctx.fillText(OPTIONS[i], r - 18, 0, r * 0.7);
+      ctx.restore();
+    }
+    // flat center hub
+    ctx.beginPath();
+    ctx.arc(c, c, r * 0.08, 0, TAU);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+  }
 
+  function winnerIndex() {
+    const seg = TAU / OPTIONS.length;
+    const pointer = (1.5 * Math.PI - rotation) % TAU;
+    return Math.floor(((pointer + TAU) % TAU) / seg) % OPTIONS.length;
+  }
+
+  function spin() {
+    resultEl.classList.remove("show");
+    const seg = TAU / OPTIONS.length;
+    const target = Math.floor(Math.random() * OPTIONS.length);
+    const within = 0.1 + Math.random() * 0.8; // stay clear of slice edges
+    const start = rotation % TAU;
+    let end = 1.5 * Math.PI - (target + within) * seg;
+    end += TAU * (5 + Math.floor(Math.random() * 3)); // 5-7 extra turns
+    while (end <= start + TAU * 4) end += TAU;
+
+    const t0 = performance.now(), dur = SPIN_SECONDS * 1000;
+    function frame(now) {
+      const p = Math.min((now - t0) / dur, 1);
+      const eased = 1 - Math.pow(1 - p, 4); // slows down smoothly
+      rotation = start + (end - start) * eased;
+      draw();
+      if (p < 1) requestAnimationFrame(frame);
+      else {
+        resultEl.textContent = OPTIONS[winnerIndex()];
+        resultEl.classList.add("show");
+        if (SPIN_AGAIN_AFTER > 0) setTimeout(spin, SPIN_AGAIN_AFTER);
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  window.addEventListener("resize", resize);
+  resize();
+  setTimeout(spin, START_DELAY * 1000); // starts automatically after the delay, no click needed
+</script>
 </body>
 </html>
