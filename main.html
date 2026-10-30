@@ -49,8 +49,19 @@
 <script>
   /* ============ EDIT HERE ============ */
 
+  // Pega aquí el link de tu Google Sheet publicado como CSV (termina en output=csv):
+  //   https://docs.google.com/spreadsheets/d/e/XXXXXXXX/pub?output=csv
+  // En la hoja, escribe las opciones en la columna A, una por fila.
+  // La fila 1 es el título ("Opciones") y no cuenta como opción.
+  // Para agregar, eliminar o cambiar opciones, solo edita la hoja y recarga la página
+  // (Google puede tardar unos minutos en mostrar los cambios).
+  // Si lo dejas vacío ("") se usa la lista de respaldo de abajo.
+  const SHEET_URL = "https://drive.google.com/file/d/17vJekjn99M3Nmt5m9SyMdmpAviLg7fq9/view?usp=sharing";
+
+
+  // Opciones de respaldo: se usan si el link de la hoja está vacío o no carga.
   // Add or delete options freely: each line is one slice.
-  const OPTIONS = [
+  let OPTIONS = [
     "Pizza",
     "Sushi",
     "Burger",
@@ -62,12 +73,12 @@
   // Flat colors, reused in order if there are more options than colors.
   // Use any hex color code (for example "#ff0000"). Add or delete lines to change the palette.
   const COLORS = [
-    "#ffa7a5", // pink-red   (1st slice)
-    "#ffe07e", // yellow     (2nd slice)
-    "#72dcbb", // green      (3rd slice)
-    "#34acba", // blue       (4th slice)
-    "#ee6a7c", // purple     (5th slice)
-    "#ab5675"  // orange     (6th slice)
+    "#ffa7a5", // light pink  (1st slice)
+    "#ffe07e", // yellow      (2nd slice)
+    "#72dcbb", // mint green  (3rd slice)
+    "#34acba", // teal blue   (4th slice)
+    "#ee6a7c", // coral red   (5th slice)
+    "#ab5675"  // mauve       (6th slice)
   ];
 
   const START_DELAY = 3;        // seconds to wait before the wheel starts spinning
@@ -154,7 +165,51 @@
 
   window.addEventListener("resize", resize);
   resize();
-  setTimeout(spin, START_DELAY * 1000); // starts automatically after the delay, no click needed
+  // Lee la primera columna de un CSV (maneja comillas), omite la fila 1 (título) y las filas vacías.
+  function parseFirstColumn(csv) {
+    const rows = csv.split(/\r?\n/).slice(1);
+    const out = [];
+    for (const row of rows) {
+      let cell;
+      if (row.startsWith('"')) {
+        const m = row.match(/^"((?:[^"]|"")*)"/);
+        cell = m ? m[1].replace(/""/g, '"') : row.slice(1);
+      } else {
+        cell = row.split(",")[0];
+      }
+      cell = cell.trim();
+      if (cell) out.push(cell);
+    }
+    return out;
+  }
+
+  // Carga las opciones desde Google Sheets. Si hay cualquier problema, se queda con la lista de respaldo.
+  async function loadOptions() {
+    if (!SHEET_URL) return;
+    const url = SHEET_URL + (SHEET_URL.includes("?") ? "&" : "?") + "t=" + Date.now();
+    try {
+      let text;
+      try {
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        text = await res.text();
+      } catch (e) {
+        // Si el navegador bloquea la carga directa (CORS), se intenta con un servicio intermedio.
+        console.warn("Carga directa falló, probando con servicio intermedio.", e);
+        const res2 = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(url));
+        if (!res2.ok) throw new Error("HTTP " + res2.status);
+        text = await res2.text();
+      }
+      const list = parseFirstColumn(text);
+      if (list.length > 0) { OPTIONS = list; draw(); }
+    } catch (err) {
+      console.warn("No se pudo cargar la hoja, usando opciones de respaldo.", err);
+    }
+  }
+
+  const optionsReady = loadOptions();
+  // Starts automatically after the delay (once options are loaded), no click needed
+  setTimeout(async () => { await optionsReady; spin(); }, START_DELAY * 1000);
 </script>
 </body>
 </html>
