@@ -2,21 +2,25 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
+  <title>Ruleta con Delay</title>
   <style>
     body {
+      margin: 0;
       display: flex;
+      flex-direction: column;
       justify-content: center;
       align-items: center;
       height: 100vh;
-      margin: 0;
-      background-color: transparent;
+      background-color: #f4f4f9;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
     }
-    .wheel-wrapper {
+    .wrapper {
       position: relative;
-      width: 320px;
-      height: 320px;
+      width: 300px;
+      height: 300px;
     }
-    /* Flecha/Indicador superior */
+    /* Indicador superior (flecha) */
     .arrow {
       position: absolute;
       top: -12px;
@@ -24,49 +28,78 @@
       transform: translateX(-50%);
       width: 0;
       height: 0;
-      border-left: 15px solid transparent;
-      border-right: 15px solid transparent;
-      border-top: 25px solid #333;
-      z-index: 2;
+      border-left: 12px solid transparent;
+      border-right: 12px solid transparent;
+      border-top: 22px solid #222;
+      z-index: 10;
     }
-    /* Diseño de la Ruleta */
     .wheel {
       width: 100%;
       height: 100%;
       border-radius: 50%;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-      /* Opciones/Sectores de color */
-      background: conic-gradient(
-        #ffe07e,
-        #34acba,
-        #72dcbb,
-        #ab5675,
-        #ee6a7c
+      border: 4px solid #333;
+      box-sizing: border-box;
+      /* Colores planos definidos por conic-gradient (3 opciones de ejemplo) */
+      background:(
+        #e74c3c, 
+        #3498db, 
+        #2ecc71
       );
-      /* Transición suave para el efecto de frenado */
-      transition: transform 5s cubic-bezier(0.25, 0.1, 0.1, 1);
+      transition: transform 5s cubic-bezier(0.15, 0.9, 0.2, 1);
+    }
+    /* Texto del resultado */
+    #result {
+      margin-top: 20px;
+      font-size: 20px;
+      font-weight: bold;
+      color: #333;
+      height: 30px;
+      text-align: center;
     }
   </style>
 </head>
 <body>
 
-  <div class="wheel-wrapper">
+  <div class="wrapper">
     <div class="arrow"></div>
     <div class="wheel" id="wheel"></div>
   </div>
+  <div id="result">Esperando para girar...</div>
 
   <script>
-    // Se ejecuta tan pronto abre/carga la página en el iframe
-    window.onload = function() {
+    // 1. Define tus opciones aquí en el orden de los grados (de izquierda a derecha / sentido horario)
+    const opciones = ["Opción A", "Opción B", "Opción C"];
+    const totalOpciones = opciones.length;
+    const gradosPorOpcion = 360 / totalOpciones;
+
+    window.addEventListener('load', () => {
       const wheel = document.getElementById('wheel');
-      // Mínimo 5 vueltas (1800 deg) + grados aleatorios
-      const degrees = 1800 + Math.floor(Math.random() * 360);
-      
-      // Activa el giro
+      const resultDiv = document.getElementById('result');
+
+      // 2. Delay de 10 segundos (10000 milisegundos) antes de empezar a girar
       setTimeout(() => {
-        wheel.style.transform = `rotate(${degrees}deg)`;
-      }, 100); // Breve delay para asegurar renderizado inicial
-    };
+        resultDiv.textContent = "¡Girando...";
+
+        // Número aleatorio de vueltas completas (ej: 5 a 8 vueltas) + un ángulo aleatorio final
+        const vueltas = Math.floor(5 + Math.random() * 4);
+        const anguloAleatorio = Math.floor(Math.random() * 360);
+        const gradosTotales = (vueltas * 360) + anguloAleatorio;
+
+        // Aplicamos la rotación
+        wheel.style.transform = `rotate(${gradosTotales}deg)`;
+
+        // Calculamos cuál opción ganó exactamente cuando termine la animación (5 segundos después)
+        setTimeout(() => {
+          // Normalizamos el ángulo final a un rango de 0 a 360 grados
+          const anguloFinal = 360 - (gradosTotales % 360);
+          const indiceGanador = Math.floor(anguloFinal / gradosPorOpcion) % totalOpciones;
+
+          // Mostramos la opción ganadora en pantalla
+          resultDiv.textContent = `Resultado: ${opciones[indiceGanador]}`;
+        }, 5000); // 5000ms dura la transición de giro CSS
+
+      }, 10000); // 10000ms de delay inicial
+    });
   </script>
 
 </body>
