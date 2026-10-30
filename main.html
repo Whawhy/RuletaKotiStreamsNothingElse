@@ -49,7 +49,9 @@
 <script>
   /* ============ EDIT HERE ============ */
 
-  // Pega aquí el link de tu Google Sheet publicado como CSV (termina en output=csv):
+  // Pega aquí el link de tu Google Sheet. Sirve el link normal de la hoja
+  // (la hoja debe estar compartida como "Cualquier persona con el link" > Lector)
+  // o el link publicado como CSV (termina en output=csv):
   //   https://docs.google.com/spreadsheets/d/e/XXXXXXXX/pub?output=csv
   // En la hoja, escribe las opciones en la columna A, una por fila.
   // La fila 1 es el título ("Opciones") y no cuenta como opción.
@@ -62,13 +64,10 @@
   // Opciones de respaldo: se usan si el link de la hoja está vacío o no carga.
   // Add or delete options freely: each line is one slice.
   let OPTIONS = [
-    "No cargo",
-    "Tu excel",
-    "Puto Whawhy",
-    "Tacos",
-    "Pasta",
-    "Salad"
-  ];
+    "Pizza",
+    "Sushi",
+    "Burger",
+    "CODIGO"  ];
 
   // Flat colors, reused in order if there are more options than colors.
   // Use any hex color code (for example "#ff0000"). Add or delete lines to change the palette.
@@ -183,10 +182,19 @@
     return out;
   }
 
+  // Acepta el link normal de la hoja (.../spreadsheets/d/ID/edit...) y lo convierte a CSV.
+  // Si ya es un link publicado (.../d/e/.../pub?output=csv), lo deja igual.
+  function toCsvUrl(u) {
+    const m = u.match(/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+    if (m && m[1] !== "e") return "https://docs.google.com/spreadsheets/d/" + m[1] + "/gviz/tq?tqx=out:csv";
+    return u;
+  }
+
   // Carga las opciones desde Google Sheets. Si hay cualquier problema, se queda con la lista de respaldo.
   async function loadOptions() {
     if (!SHEET_URL) return;
-    const url = SHEET_URL + (SHEET_URL.includes("?") ? "&" : "?") + "t=" + Date.now();
+    const base = toCsvUrl(SHEET_URL);
+    const url = base + (base.includes("?") ? "&" : "?") + "t=" + Date.now();
     try {
       let text;
       try {
@@ -200,6 +208,7 @@
         if (!res2.ok) throw new Error("HTTP " + res2.status);
         text = await res2.text();
       }
+      if (/^\s*</.test(text)) throw new Error("Google devolvió una página web en vez de datos. Revisa que la hoja esté compartida como 'Cualquier persona con el link'.");
       const list = parseFirstColumn(text);
       if (list.length > 0) { OPTIONS = list; draw(); }
     } catch (err) {
